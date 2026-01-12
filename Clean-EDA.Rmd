@@ -1,0 +1,228 @@
+---
+title: "Untitled"
+output: html_document
+date: "2023-12-02"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Intro to Data Science - Lab 11
+##### Copyright 2023, Jeffrey Stanton and Jeffrey Saltz   Please do not post online.
+
+## Week 12 - Text Mining
+
+```{r}
+# Enter your name here: Nandita Ghildyal
+```
+
+
+
+```{r}
+library (arrow)
+library(tidyverse)
+static_housing <- read_parquet("https://intro-datascience.s3.us-east-2.amazonaws.com/SC-data/static_house_info.parquet") 
+str(static_housing)
+
+energy_data <- read_parquet("https://intro-datascience.s3.us-east-2.amazonaws.com/SC-data/2023-houseData/102063.parquet")
+str(energy_data)
+
+library(tidyverse)
+weather_data <- read_csv("https://intro-datascience.s3.us-east-2.amazonaws.com/SC-data/weather/2023-weather-data/G4500010.csv")
+str(weather_data)
+
+meta_data <- read_csv("https://intro-datascience.s3.us-east-2.amazonaws.com/SC-data/data_dictionary.csv")
+str(meta_data)
+```
+
+#saving to an excel for a better visual of the data
+
+```{r}
+library(writexl)
+
+write_xlsx(static_housing, "static_housing.xlsx")
+write_xlsx(energy_data, "energu_data.xlsx")
+write_xlsx(weather_data, "weather_data.xlsx")
+write_xlsx(meta_data,"meta_data.xlsx")
+```
+
+1. Cleaning static_housing dataset
+
+```{r}
+# Checking for missing values (NAs) in static_housing
+#nas <- sapply(static_housing, function(x) sum(is.na(x)))
+#print(nas)
+
+cols_with_na <- names(static_housing)[colSums(is.na(static_housing)) > 1]
+
+# Display columns with more than one NA
+print(cols_with_na)
+```
+
+
+```{r}
+# Initialize an empty array to store columns with only one unique value after removing blanks
+output_cols <- c()
+
+
+# Loop through columns in the static_housing dataset
+for (col in names(static_housing)) {
+  non_blank_values <- na.omit(static_housing[[col]])
+  non_blank_values <- non_blank_values[non_blank_values != ""] # Remove blank values
+  if (length(unique(non_blank_values)) == 1) {
+    output_cols <- c(output_cols, col)
+  }
+}
+
+# Display columns with only one unique value after removing blanks
+print(output_cols)
+
+
+# Remove columns with only one unique value from the static_housing dataset
+static_housing_filtered <- static_housing[, !names(static_housing) %in% output_cols]
+
+# Display the updated dataset
+print(static_housing_filtered)
+write_xlsx(static_housing_filtered, "static_housing_filtered.xlsx")
+
+```
+
+
+
+```{r}
+#look for blanks row wise\
+
+# Calculate percentage of blanks and non-blanks in each column
+percent_blanks <- sapply(static_housing_filtered, function(x) mean(x == "") * 100)
+percent_non_blanks <- 100 - percent_blanks
+
+# Create a matrix with column names and their respective percentages of blanks and non-blanks
+blanks_vs_values_matrix <- matrix(c(percent_blanks, percent_non_blanks), nrow = 2, byrow = TRUE,
+                                  dimnames = list(c("Percentage of Blanks", "Percentage of Values"), names(static_housing_filtered)))
+
+# Print the matrix
+blanks_vs_values_matrix[, blanks_vs_values_matrix[1,] > 0]
+
+#since they have low blanks we can try to do some sort of interpolation
+
+```
+
+
+```{r}
+bldg_ids <- unique(static_housing_filtered$bldg_id)
+links <- paste0("https://intro-datascience.s3.us-east-2.amazonaws.com/SC-data/2023-houseData/", bldg_ids, ".parquet")
+data_df <- data.frame(bldg_id = bldg_ids, link = links)
+
+
+
+```
+
+
+```{r}
+# Assuming data_df dataframe is created with bldg_id and link columns
+library(httr)
+# Create an empty list to store data frames
+parquet_data <- list()
+x<-(nrow(data_df))
+y<-500
+z<-1000
+# Loop through each link and read Parquet files
+for (i in 1:x) {
+    link <- as.character(data_df[i, "link"])
+    bldg_id <- as.character(data_df[i, "bldg_id"])
+    
+    
+    response <- GET(link)
+
+# Save the content to a temporary file
+temp_parquet <- tempfile(fileext = ".parquet")
+writeBin(content(response), temp_parquet)
+
+# Read the Parquet file into a dataframe
+df <- read_parquet(temp_parquet)
+
+    
+    # Assign bldg_id to the first column
+    df$bldg_id <- bldg_id
+    df<-df%>%filter(month(energy_data$time)==7)
+    # Add the dataframe to the list
+    parquet_data[[i]] <- df
+   cat("Progress: ", i, "/", nrow(data_df), "\n")
+  
+}
+
+# Combine all data frames into a single data frame
+combined_data <- do.call(rbind, parquet_data)
+head(combined_data)
+write_xlsx(combined_data,"Full_HOusing_Energy_Data.xlsx")
+
+View(combined_data)
+
+combined_data$hour<-hour(combined_data$time)
+head(combined_data$hour)
+
+aggregate_hourly<-combined_data%>%group_by(bldg_id,hour)%>%summarize(across(where(is.numeric), sum))
+head(aggregate_hourly)
+write_xlsx(aggregate_hourly,"aggregate_hourly_Energy_Data.xlsx")
+```
+
+
+
+```{r}
+merged_house_Static_energy <- merge(static_housing_filtered,aggregate_hourly , by = "bldg_id", all = TRUE)
+head(merged_house_Static_energy)
+write_xlsx(merged_house_Static_energy,"merged_house_Static_energy.xlsx")
+```
+
+6. Using **textstat_frequency()** from the **quanteda.textstats** package, show the 10
+most frequent words, and how many times each was used/mentioned.
+
+```{r}
+countys<- unique(merged_house_Static_energy$in.county)
+links_countys <- paste0("https://intro-datascience.s3.us-east-2.amazonaws.com/SC-data/weather/2023-weather-data/", countys, ".csv")
+links_countys
+data_df_countys<- data.frame(countys = countys, links_countys  = links_countys)
+
+
+# Assuming data_df dataframe is created with bldg_id and link columns
+library(httr)
+# Create an empty list to store data frames
+parquet_data_countys <- list()
+x<-(nrow(data_df_countys))
+
+# Loop through each link and read Parquet files
+for (i in 1:x) {
+    link <- as.character(data_df_countys[i, "links_countys"])
+    
+    county <- as.character(data_df_countys[i, "countys"])
+    
+ 
+# Read the Parquet file into a dataframe
+  df <- read_csv(link)
+
+    
+    # Assign bldg_id to the first column
+   df$county<- county
+   #df<-df%>%filter(month(energy_data$date_time)==7)
+    # Add the dataframe to the list
+   parquet_data_countys[[i]] <- df
+   cat("Progress: ", i, "/",x, "\n")
+  
+}
+
+combined_data_weather <- do.call(rbind,  parquet_data_countys)
+combined_data_weather<-combined_data_weather%>% filter(month(combined_data_weather$date_time)==7)
+head(combined_data_weather)
+combined_data_weather$hour<-hour(combined_data_weather$date_time)
+
+aggregate_hourly_cdw<-combined_data_weather%>%group_by(county,hour)%>%summarize(across(where(is.numeric), mean))
+write_xlsx(aggregate_hourly_cdw,"aggregate_hourly_cdw.xlsx")
+
+Final_Dataset<- merge(aggregate_hourly_cdw,merged_house_Static_energy , by = c("hour","in.county", all = TRUE)
+
+head(Final_Dataset)
+write_parquet(Final_Dataset, "output_file.parquet")
+```
+

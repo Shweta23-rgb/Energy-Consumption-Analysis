@@ -1,0 +1,275 @@
+---
+title: "Untitled"
+output: html_document
+date: "2023-12-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+---
+title: "Main_data_Models"
+output: html_document
+date: "2023-12-03"
+---
+
+{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+Version-1 Model
+```
+in.sqft
+in.bedrooms
+in.building_america_climate_zone
+in.ceiling_fan
+in.cooling_setpoint
+in.cooling_setpoint_has_offset
+in.cooling_setpoint_offset_magnitude
+in.cooling_setpoint_offset_period
+in.ducts
+in.geometry_foundation_type
+in.geometry_wall_type
+in.has_pv
+in.heating_fuel
+in.hot_water_fixtures
+in.hvac_cooling_partial_space_conditioning
+in.hvac_cooling_type
+in.hvac_heating_type
+in.hvac_heating_type_and_fuel
+in.insulation_ceiling
+in.insulation_wall
+in.lighting
+in.misc_extra_refrigerator
+in.misc_freezer
+in.misc_pool_pump
+in.occupants
+in.pv_system_size
+in.refrigerator
+in.roof_material
+in.usage_level
+in.vacancy_status
+in.water_heater_efficiency
+in.water_heater_fuel
+
+```{r}
+
+library (arrow)
+library(arrow)
+library(tidyverse)
+Merged_Final<-read_parquet("/Users/USER/Desktop/IDS Files/Aggregate_Final_Dataset.parquet")
+```
+
+```{r}
+unique(Merged_Final$hour)
+```
+
+
+
+```{r}
+cols_1<-c('hour','in.sqft',
+'in.bedrooms',
+'in.building_america_climate_zone',
+'in.ceiling_fan',
+'in.cooling_setpoint_has_offset',
+'in.cooling_setpoint_offset_magnitude',
+'in.cooling_setpoint_offset_period',
+'in.ducts',
+'in.geometry_foundation_type',
+'in.geometry_wall_type',
+'in.has_pv',
+'in.heating_fuel',
+'in.hot_water_fixtures',
+'in.hvac_cooling_partial_space_conditioning',
+'in.hvac_cooling_type',
+'in.hvac_heating_type',
+'in.hvac_heating_type_and_fuel',
+'in.insulation_ceiling',
+'in.insulation_wall',
+'in.lighting',
+'in.misc_extra_refrigerator',
+'in.misc_freezer',
+'in.misc_pool_pump',
+'in.occupants',
+'in.pv_system_size',
+'in.refrigerator',
+'in.roof_material',
+'in.usage_level',
+'in.vacancy_status',
+'in.water_heater_efficiency',
+'in.water_heater_fuel',
+'Final_Energy_KWH'
+)
+
+Subset_V1<-Merged_Final[,cols_1]
+
+
+```
+
+```{r}
+# Assuming Merged_Final is your dataframe and cols_1 are the columns you want to select
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Get the number of rows in Merged_Final
+n_rows <- nrow(Subset_V1)
+
+# Calculate the number of rows to sample
+n_sample <- min(50000, n_rows) # Ensures you don't exceed the number of available rows
+
+# Randomly select row indices
+random_rows <- sample(n_rows, n_sample)
+
+# Subset the dataframe using the randomly selected rows
+Subset_V1 <- Subset_V1[random_rows, cols_1]
+
+
+```
+
+```{r}
+non_numeric_cols <- sapply(Subset_V1, function(x) !is.numeric(x))
+Subset_V1[non_numeric_cols] <- lapply(Subset_V1[non_numeric_cols], as.factor)
+str(Subset_V1)
+unique(Subset_V1$hour)
+```
+```{r}
+library(caret)
+set.seed(123)  # Setting seed for reproducibility
+splitIndex <- createDataPartition(Subset_V1$Final_Energy_KWH, p = 0.6, list = FALSE)
+train_data <- Subset_V1[splitIndex, ]
+test_data <- Subset_V1[-splitIndex, ]
+
+# Separate predictors and target variable for training and testing sets
+train_X <- train_data[1:10000,cols_1]
+train_Y <- train_data$Final_Energy_KWH
+test_X <- test_data[, cols_1]
+test_Y <- test_data$Final_Energy_KWH
+
+```
+``` {r}
+# Example assuming 'energy_consumption' is the target variable
+model_lm <- lm( Final_Energy_KWH~ ., data = train_data)
+summary(model_lm)
+```
+
+
+
+
+```{r}
+cols_2<-c('hour',
+  'Dry Bulb Temperature [°C]',
+   'Relative Humidity [%]',
+  'Global Horizontal Radiation [W/m2]',
+  'in.sqft',
+          'in.bedrooms',
+          'in.building_america_climate_zone',
+          'in.ceiling_fan',
+          'in.cooling_setpoint',
+          'in.cooling_setpoint_has_offset',
+          'in.cooling_setpoint_offset_magnitude',
+          'in.cooling_setpoint_offset_period',
+          'in.ducts',
+          'in.geometry_foundation_type',
+          'in.geometry_wall_type',
+          'in.has_pv',
+          'in.heating_fuel',
+          'in.hot_water_fixtures',
+          'in.hvac_cooling_partial_space_conditioning',
+          'in.hvac_cooling_type',
+          'in.hvac_heating_type',
+          'in.hvac_heating_type_and_fuel',
+          'in.insulation_ceiling',
+          'in.insulation_wall',
+          'in.lighting',
+          'in.misc_extra_refrigerator',
+          'in.misc_freezer',
+          'in.misc_pool_pump',
+          'in.occupants',
+          'in.pv_system_size',
+          'in.refrigerator',
+          'in.roof_material',
+          'in.usage_level',
+          'in.vacancy_status',
+          'in.water_heater_efficiency',
+          'in.water_heater_fuel',
+'Final_Energy_KWH'
+)
+
+Subset_V2<-Merged_Final[,cols_2]
+```
+
+```{r}
+str(Subset_V2)
+```
+```{r}
+non_numeric_cols <- sapply(Subset_V2, function(x) !is.numeric(x))
+Subset_V2[non_numeric_cols] <- lapply(Subset_V2[non_numeric_cols], as.factor)
+```
+```{r}
+# Assuming Merged_Final is your dataframe and cols_1 are the columns you want to select
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Get the number of rows in Merged_Final
+n_rows <- nrow(Subset_V2)
+
+# Calculate the number of rows to sample
+n_sample <- min(500000, n_rows) # Ensures you don't exceed the number of available rows
+
+# Randomly select row indices
+random_rows <- sample(n_rows, n_sample)
+
+# Subset the dataframe using the randomly selected rows
+Subset_V2 <- Subset_V2[random_rows, cols_2]
+```
+
+```{r}
+str(Subset_V2)
+```
+
+```{r}
+# Assuming Subset_V2 is your dataframe
+library(e1071)
+# Set seed for reproducibility
+set.seed(123)
+
+# Split data into training and test sets (e.g., 80% training, 20% test)
+train_indices <- sample(1:nrow(Subset_V2), size = 0.8 * nrow(Subset_V2))
+train_data <- Subset_V2[train_indices, ]
+test_data <- Subset_V2[-train_indices, ]
+
+```
+
+```{r}
+library(randomForest)
+```
+
+```{r}
+# Fit Random Forest regression model on the training datasvm
+svm_model <- svm(Final_Energy_KWH ~ ., data = train_data)
+
+# Summary of the Random Forest model
+print(svm_model)
+
+
+
+```
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
